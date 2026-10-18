@@ -14,14 +14,8 @@
     border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06);
     border-left: 6px solid #2980b9;
   }
-  #baslik {
-    font-size: 20px; color: #2c3e50; margin-bottom: 12px;
-    border-bottom: 2px solid #ecf0f1; padding-bottom: 8px;
-  }
-  .kart {
-    background: #f4f9fc; padding: 14px; margin-bottom: 10px;
-    border-radius: 8px; border: 1px solid #d4e6f1;
-  }
+  #baslik { font-size: 20px; color: #2c3e50; margin-bottom: 12px; border-bottom: 2px solid #ecf0f1; padding-bottom: 8px; }
+  .kart { background: #f4f9fc; padding: 14px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #d4e6f1; }
   .kart a { color: #1a5276; text-decoration: none; font-weight: bold; font-size: 15px; }
   .tarih { font-size: 11px; color: #7f8c8d; margin-bottom: 4px; }
   #durum { color: #7f8c8d; margin-bottom: 10px; }
@@ -42,11 +36,11 @@
 (function () {
   var BLOG = "https://ybuyatirim.blogspot.com";
   var GEO  = "tr-cities.json";
-
   var haberler = [];
   var map, layer, geoData = null, maxS = 1;
   var sayfa = 0;
-  var TOPLAM = 4; // 4 x 500 = 2000
+  var SAYFA_BOYUTU = 150;
+  var TOPLAM_SAYFA = 11; // 11 x 150 = 1650
 
   function tr(s) {
     return String(s || "")
@@ -78,7 +72,6 @@
     if (a.indexOf("afyon") !== -1 && h.etiketler.some(function(e){ return e.indexOf("afyon") !== -1; })) return true;
     if ((a.indexOf("urfa") !== -1 || a.indexOf("sanliurfa") !== -1) && h.etiketler.some(function(e){ return e.indexOf("urfa") !== -1 || e.indexOf("sanliurfa") !== -1; })) return true;
     if (a.indexOf("kocaeli") !== -1 && h.etiketler.some(function(e){ return e.indexOf("kocaeli") !== -1 || e.indexOf("izmit") !== -1; })) return true;
-    if (a.indexOf("kahramanmaras") !== -1 && h.etiketler.some(function(e){ return e.indexOf("maras") !== -1 || e.indexOf("kahramanmaras") !== -1; })) return true;
     return false;
   }
 
@@ -163,24 +156,24 @@
 
   function sonraki() {
     sayfa++;
-    if (sayfa > TOPLAM) {
+    if (sayfa > TOPLAM_SAYFA) {
       document.getElementById("durum").innerHTML =
         "Toplam <b>" + haberler.length + "</b> haber yüklendi. İle tıklayın.";
       ciz();
       return;
     }
-    var start = (sayfa - 1) * 500 + 1;
+    var start = (sayfa - 1) * SAYFA_BOYUTU + 1;
     var cb = "ybuCb" + sayfa;
     window[cb] = function (d) {
       ekle(d);
       document.getElementById("durum").innerHTML =
-        "Yüklenen: <b>" + haberler.length + "</b> (sayfa " + sayfa + "/" + TOPLAM + ")";
+        "Yüklenen: <b>" + haberler.length + "</b> (sayfa " + sayfa + "/" + TOPLAM_SAYFA + ")";
       ciz();
-      sonraki();
+      setTimeout(sonraki, 400); // kısa bekleme, Blogger’ı yormamak için
     };
     var s = document.createElement("script");
-    // summary = sadece başlık+etiket (çok daha hızlı ve hafif)
-    s.src = BLOG + "/feeds/posts/summary?alt=json-in-script&max-results=500&start-index=" + start + "&callback=" + cb;
+    s.src = BLOG + "/feeds/posts/summary?alt=json-in-script&max-results=" + SAYFA_BOYUTU +
+            "&start-index=" + start + "&callback=" + cb;
     s.onerror = function () {
       document.getElementById("durum").innerHTML =
         "Toplam <b>" + haberler.length + "</b> haber yüklendi.";
