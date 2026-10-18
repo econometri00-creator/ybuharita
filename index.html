@@ -32,7 +32,7 @@
   <div id="map"></div>
   <div id="panel">
     <div id="baslik">Yatırım Haritası Aktif</div>
-    <div id="durum">Haberler yükleniyor (0)...</div>
+    <div id="durum">Haberler yükleniyor...</div>
     <div id="liste"></div>
   </div>
 </div>
@@ -46,7 +46,7 @@
   var haberler = [];
   var map, layer, geoData = null, maxS = 1;
   var sayfa = 0;
-  var TOPLAM_SAYFA = 4;   // 4 x 500 = 2000 yazıya kadar
+  var TOPLAM = 4; // 4 x 500 = 2000
 
   function tr(s) {
     return String(s || "")
@@ -61,7 +61,6 @@
     attribution: "© OpenStreetMap", maxZoom: 18
   }).addTo(map);
 
-  // GeoJSON
   fetch(GEO).then(function(r){ return r.json(); }).then(function (data) {
     geoData = data;
     ciz();
@@ -76,7 +75,6 @@
       var e = h.etiketler[i];
       if (e === a || e.indexOf(a) !== -1) return true;
     }
-    // sık kullanılan alias'lar
     if (a.indexOf("afyon") !== -1 && h.etiketler.some(function(e){ return e.indexOf("afyon") !== -1; })) return true;
     if ((a.indexOf("urfa") !== -1 || a.indexOf("sanliurfa") !== -1) && h.etiketler.some(function(e){ return e.indexOf("urfa") !== -1 || e.indexOf("sanliurfa") !== -1; })) return true;
     if (a.indexOf("kocaeli") !== -1 && h.etiketler.some(function(e){ return e.indexOf("kocaeli") !== -1 || e.indexOf("izmit") !== -1; })) return true;
@@ -148,8 +146,7 @@
   }
 
   function ekle(data) {
-    if (!data || !data.feed || !data.feed.entry) return 0;
-    var eklendi = 0;
+    if (!data || !data.feed || !data.feed.entry) return;
     data.feed.entry.forEach(function (e) {
       var baslik = e.title ? e.title.$t : "";
       var link = "#";
@@ -161,41 +158,38 @@
       var tarih = e.published ? new Date(e.published.$t).toLocaleDateString("tr-TR") : "";
       var etiketler = e.category ? e.category.map(function (c) { return tr(c.term); }) : [];
       haberler.push({ baslik: baslik, link: link, tarih: tarih, etiketler: etiketler });
-      eklendi++;
     });
-    return eklendi;
   }
 
-  // Sırayla 4 sayfa çek
-  function sonrakiSayfa() {
+  function sonraki() {
     sayfa++;
-    if (sayfa > TOPLAM_SAYFA) {
+    if (sayfa > TOPLAM) {
       document.getElementById("durum").innerHTML =
         "Toplam <b>" + haberler.length + "</b> haber yüklendi. İle tıklayın.";
       ciz();
       return;
     }
     var start = (sayfa - 1) * 500 + 1;
-    var cbAdi = "cbSayfa" + sayfa;
-    window[cbAdi] = function (d) {
+    var cb = "ybuCb" + sayfa;
+    window[cb] = function (d) {
       ekle(d);
       document.getElementById("durum").innerHTML =
-        "Yüklenen: <b>" + haberler.length + "</b> haber (sayfa " + sayfa + "/" + TOPLAM_SAYFA + ")";
+        "Yüklenen: <b>" + haberler.length + "</b> (sayfa " + sayfa + "/" + TOPLAM + ")";
       ciz();
-      sonrakiSayfa();
+      sonraki();
     };
     var s = document.createElement("script");
-    s.src = BLOG + "/feeds/posts/default?alt=json-in-script&max-results=500&start-index=" + start + "&callback=" + cbAdi;
+    // summary = sadece başlık+etiket (çok daha hızlı ve hafif)
+    s.src = BLOG + "/feeds/posts/summary?alt=json-in-script&max-results=500&start-index=" + start + "&callback=" + cb;
     s.onerror = function () {
       document.getElementById("durum").innerHTML =
-        "Toplam <b>" + haberler.length + "</b> haber yüklendi (bazı sayfalar alınamadı).";
+        "Toplam <b>" + haberler.length + "</b> haber yüklendi.";
       ciz();
     };
     document.body.appendChild(s);
   }
 
-  // Başlat
-  sonrakiSayfa();
+  sonraki();
 })();
 </script>
 </body>
