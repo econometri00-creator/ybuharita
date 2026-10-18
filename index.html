@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YBU Yatırım - Gayrimenkul Haritası</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f7fa; }
+  #map { height: 520px; width: 100%; border-radius: 12px; border: 2px solid #ddd; }
+  #panel {
+    margin-top: 20px; padding: 20px; background: #fff;
+    border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    border-left: 6px solid #2980b9;
+  }
+  #baslik {
+    font-size: 20px; color: #2c3e50; margin-bottom: 12px;
+    border-bottom: 2px solid #ecf0f1; padding-bottom: 8px;
+  }
+  .kart {
+    background: #f4f9fc; padding: 14px; margin-bottom: 10px;
+    border-radius: 8px; border: 1px solid #d4e6f1;
+  }
+  .kart a { color: #1a5276; text-decoration: none; font-weight: bold; }
+  .tarih { font-size: 11px; color: #7f8c8d; margin-bottom: 4px; }
+  #durum { color: #7f8c8d; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div style="max-width:1100px;margin:15px auto;padding:10px;">
+  <div id="map"></div>
+  <div id="panel">
+    <div id="baslik">Yatırım Haritası Aktif</div>
+    <div id="durum">Haberler yükleniyor...</div>
+    <div id="liste"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  var BLOG = "https://ybuyatirim.blogspot.com";
+  var GEO  = "tr-cities.json";   // aynı klasörde
+
+  var haberler = [];
+  var map, layer, geoData = null, maxS = 1;
+
+  function tr(s) {
+    return String(s || "")
+      .replace(/İ/g,"i").replace(/I/g,"ı")
+      .replace(/Ş/g,"ş").replace(/Ğ/g,"ğ")
+      .replace(/Ü/g,"ü").replace(/Ö/g,"ö").replace(/Ç/g,"ç")
+      .toLowerCase().trim();
+  }
+
+  map = L.map("map").setView([38.96, 35.24], 6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap", maxZoom: 18
+  }).addTo(map);
+
+  // GeoJSON
+  fetch(GEO).then(r => r.json()).then(function (data) {
+    geoData = data;
+    ciz();
+  }).catch(function () {
+    document.getElementById("durum").innerHTML = "Harita dosyası yüklenemedi.";
+  });
+
+  function esles(h, il) {
+    var a = tr(il);
+    if (a.length < 3) return false;
+    for (var i = 0; i < h.etiketler.length; i++) {
+      var e = h.etiketler[i];
+      if (e === a || e.indexOf(a) !== -1) return true;
+    }
+    // alias
+    if (a.indexOf("afyon") !== -1 && h.etiketler.some(function(e){return e.indexOf("afyon")!==-1;})) return true;
+    if (a.indexOf("urfa") !== -1 && h.etiketler.some(function(e){return e.indexOf("urfa")!==-1 || e.indexOf("sanliurfa")!==-1;})) return true;
+    if (a.indexOf("kocaeli") !== -1 && h.etiketler.some(function(e){return e.indexOf("kocaeli")!==-1 || e.indexOf("izmit")!==-1;})) return true;
+    return false;
+  }
+
+  function say(il) {
+    var n = 0;
+    for (var i = 0; i < haberler.length; i++) if (esles(haberler[i], il)) n++;
+    return n;
+  }
+
+  function renk(n) {
+    if (n <= 0) return "#d6eaf8";
+    var o = Math.min(n / maxS, 1);
+    if (o < 0.2) return "#aed6f1";
+    if (o < 0.4) return "#5dade2";
+    if (o < 0.6) return "#3498db";
+    if (o < 0.8) return "#2e86c1";
+    return "#1a5276";
+  }
+
+  function ciz() {
+    if (!geoData) return;
+    maxS = 1;
+    geoData.features.forEach(function (f) {
+      var n = say(f.properties.name || "");
+      if (n > maxS) maxS = n;
+    });
+    if (layer) map.removeLayer(layer);
+    layer = L.geoJSON(geoData, {
+      style: function (f) {
+        var n = say(f.properties.name || "");
+        return { fillColor: renk(n), weight: 1.2, color: "#fff", fillOpacity: 0.85 };
+      },
+      onEachFeature: function (f, l) {
+        var il = f.properties.name || "?";
+        var n = say(il);
+        l.bindTooltip("<b>" + il + "</b><br>" + n + " analiz", { sticky: true });
+        l.on("click", function () {
+          listele(il);
+          map.fitBounds(l.getBounds(), { padding: [30, 30] });
+        });
+        l.on({
+          mouseover: function (e) { e.target.setStyle({ weight: 3, color: "#1a5276" }); },
+          mouseout: function (e) { layer.resetStyle(e.target); }
+        });
+      }
+    }).addTo(map);
+  }
+
+  function listele(il) {
+    document.getElementById("baslik").innerHTML = il + " Gayrimenkul Yatırım Haberleri";
+    var liste = document.getElementById("liste");
+    liste.innerHTML = "";
+    var es = haberler.filter(function (h) { return esles(h, il); });
+    if (es.length === 0) {
+      liste.innerHTML = "<p style='color:#7f8c8d;font-style:italic;'>Bu ile ait etiketli haber bulunamadı.</p>";
+      return;
+    }
+    es.forEach(function (h) {
+      var d = document.createElement("div");
+      d.className = "kart";
+      d.innerHTML = '<div class="tarih">Yayın: ' + h.tarih + '</div>' +
+        '<a href="' + h.link + '" target="_blank">' + h.baslik + '</a>';
+      liste.appendChild(d);
+    });
+  }
+
+  // Haberler (JSONP)
+  function ekle(data) {
+    if (!data || !data.feed || !data.feed.entry) return;
+    data.feed.entry.forEach(function (e) {
+      var baslik = e.title ? e.title.$t : "";
+      var link = "#";
+      if (e.link) {
+        for (var i = 0; i < e.link.length; i++) {
+          if (e.link[i].rel === "alternate") { link = e.link[i].href; break; }
+        }
+      }
+      var tarih = e.published ? new Date(e.published.$t).toLocaleDateString("tr-TR") : "";
+      var etiketler = e.category ? e.category.map(function (c) { return tr(c.term); }) : [];
+      haberler.push({ baslik: baslik, link: link, tarih: tarih, etiketler: etiketler });
+    });
+  }
+
+  window.cb1 = function (d) {
+    ekle(d);
+    document.getElementById("durum").innerHTML = "Yüklenen: <b>" + haberler.length + "</b> haber";
+    ciz();
+    var s = document.createElement("script");
+    s.src = BLOG + "/feeds/posts/default?alt=json-in-script&max-results=500&start-index=501&callback=cb2";
+    document.body.appendChild(s);
+  };
+  window.cb2 = function (d) {
+    ekle(d);
+    document.getElementById("durum").innerHTML = "Yüklenen: <b>" + haberler.length + "</b> haber";
+    ciz();
+    var s = document.createElement("script");
+    s.src = BLOG + "/feeds/posts/default?alt=json-in-script&max-results=500&start-index=1001&callback=cb3";
+    document.body.appendChild(s);
+  };
+  window.cb3 = function (d) {
+    ekle(d);
+    document.getElementById("durum").innerHTML = "Toplam <b>" + haberler.length + "</b> haber yüklendi. İle tıklayın.";
+    ciz();
+  };
+
+  var s1 = document.createElement("script");
+  s1.src = BLOG + "/feeds/posts/default?alt=json-in-script&max-results=500&start-index=1&callback=cb1";
+  document.body.appendChild(s1);
+})();
+</script>
+</body>
+</html>
